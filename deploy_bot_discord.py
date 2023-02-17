@@ -5,12 +5,6 @@ intents = discord.Intents.all()
 client = discord.Client(intents=intents)
 
 @client.event
-async def on_ready():
-    guild = discord.utils.get(client.guilds, name='Serverzin')
-    channel = discord.utils.get(guild.text_channels, name='geral')
-    await channel.send('The bot is online!')
-
-@client.event
 async def on_message(message):
     if isinstance(message.channel, discord.DMChannel):
         if message.content.lower() == '!hello':
