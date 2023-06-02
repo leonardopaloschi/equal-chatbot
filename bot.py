@@ -10,10 +10,17 @@ from nltk.corpus import wordnet as wn
 
 import nltk
 
+from generator import generate_sentence, train_model
+
 from crawler_bfs import crawl_bfs
 nltk.download('wordnet')
 
 intents = discord.Intents.all()
+
+from transformers import pipeline, set_seed
+
+generator = pipeline('text-generation', model='gpt2')
+set_seed(42)
 
 base_url = 'https://api.spoonacular.com/'
 pattern_number = r"^[0-9]{1,5}$"
@@ -104,11 +111,27 @@ async def crawl(ctx, url):
     await ctx.send("Crawling finished!")  # Send a message indicating the completion of crawling
 
 @client.command()
-async def wn_search(ctx, term):
+async def generate(ctx, term):
+    await ctx.send("Generating text for term " + term)  # Send a message indicating the term for which text is being generated
+    model, tokenizer, max_sequence_length = train_model() # Train the model and get the tokenizer and maximum sequence length
+    print('Generating text for term ' + term) # Print the term for which text is being generated
+    await ctx.send(term + ' '+ generate_sentence(term, model, tokenizer, max_sequence_length))  # Send a message indicating the completion of text generation
+
+@client.command()
+async def generate_gpt(ctx, term):
+    await ctx.send("Generating text for term " + term +  " using gpt2 model")  # Send a message indicating the term for which text is being generated
+    print(generator(term, max_length=30, num_return_sequences=1))
+    await ctx.send(generator(term, max_length=30, num_return_sequences=1)[0]['generated_text'])  # Send a message indicating the term for which text is being generated
+
+@client.command()
+async def wn_search(ctx, term, threshold=None):
     conn = sqlite3.connect('database.sqlite')  # Connect to the SQLite database
     c = conn.cursor()  # Create a cursor object to execute SQL queries
     inverted_index = {}  # Initialize an empty dictionary for the inverted index
-    rows = c.execute("SELECT * FROM webpages;")  # Execute a SQL query to fetch all rows from the 'webpages' table
+    if threshold:
+        rows = c.execute("SELECT * FROM webpages WHERE sentiment >= " + threshold + ';')
+    else:
+        rows = c.execute("SELECT * FROM webpages;") # Execute a SQL query to fetch all rows from the 'webpages' table
     for row in rows:
         url, content = row[1], row[2]  # Extract the URL and content from the row
         tokens = word_tokenize(content.lower())  # Tokenize the content and convert it to lowercase
@@ -133,13 +156,18 @@ async def wn_search(ctx, term):
     await ctx.send(results)  # Send the results (URLs) as a response in the Discord channel
 
 @client.command()
-async def search(ctx, term):
+async def search(ctx, term, threshold=None):
+
     conn = sqlite3.connect('database.sqlite')  # Connect to the SQLite database
     c = conn.cursor()  # Create a cursor object to execute SQL queries
 
+    if threshold:
+        rows = c.execute("SELECT * FROM webpages WHERE sentiment >= " + threshold + ';')
+    else:
+        rows = c.execute("SELECT * FROM webpages;") # Execute a SQL query to fetch all rows from the 'webpages' table
+
     inverted_index = {}  # Initialize an empty dictionary for the inverted index
 
-    rows = c.execute("SELECT * FROM webpages;")  # Execute a SQL query to fetch all rows from the 'webpages' table
     for row in rows:
         url, content = row[1], row[2]  # Extract the URL and content from the row
         tokens = word_tokenize(content.lower())  # Tokenize the content and convert it to lowercase
@@ -163,4 +191,4 @@ async def search(ctx, term):
     conn.close()  # Close the database connection
     await ctx.send(results)  # Send the results (URLs) as a response in the Discord channel
 
-client.run('MTA3NTUyOTk3NzA5MDU0NzcyMw.GNSFva.epxth5V0K3qGSvakLN0ME0SN2b5wzZSTXR-j3g')
+client.run('')
