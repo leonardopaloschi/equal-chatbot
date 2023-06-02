@@ -2,7 +2,7 @@
 
 ## Para rodar o chatbot de forma local é só utiliar o comando pip para instalar a biblioteca do discord para python e atualizar o token para o token do seu bot.
 
-## Comando pip para instalar as bibliotecas pip install nltk bs4 sqlite3 requests transformers discord.py.
+## Comando pip para instalar as bibliotecas pip install nltk bs4 torch requests transformers discord.py.
 
 ## Você precisa instalar o tensorflow. Com o conda fica mais fácil.
 
