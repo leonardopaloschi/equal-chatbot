@@ -1,11 +1,21 @@
-import requests
+"""
+This module performs web crawling using a breadth-first search (BFS) approach. It crawls a given URL, analyzes the sentiment of the webpage content using a sentiment analysis pipeline, and stores the results in an SQLite database.
+
+Dependencies:
+- aiohttp: For asynchronous HTTP requests.
+- BeautifulSoup: For parsing HTML content.
+- transformers: For sentiment analysis.
+- sqlite3: For database operations.
+"""
+
 import sqlite3
+import aiohttp
 from bs4 import BeautifulSoup
 from transformers import pipeline
 
 # Initialize the sentiment classifier pipeline
 distilled_student_sentiment_classifier = pipeline(
-    model="lxyuan/distilbert-base-multilingual-cased-sentiments-student", 
+    model="lxyuan/distilbert-base-multilingual-cased-sentiments-student",
     return_all_scores=True
 )
 
@@ -14,47 +24,49 @@ conn = sqlite3.connect('database.sqlite')
 cursor = conn.cursor()
 
 async def crawl_bfs(url):
-    crawl_queue = []
+    """
+    Perform breadth-first search to crawl the given URL, analyze its sentiment, and store the data in the SQLite database.
+
+    Args:
+        url (str): The URL to crawl.
     
-    # Check if the URL has been visited before
+    Returns:
+        list: List of URLs to crawl next.
+    """
+    crawl_queue = []
+
     if cursor.execute("SELECT url FROM visited WHERE url=?;", (url,)).fetchone():
         return crawl_queue
-    
-    try:
-        # Send a GET request to the URL
-        response = requests.get(url)
-    except Exception as e:
-        # Handle any exceptions that occur during the request
-        print(e)
-        return crawl_queue
-    
-    try:
-        # Parse the HTML content using BeautifulSoup
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Perform sentiment analysis on the webpage content
-        distilled_student_sentiment_classifier_output = distilled_student_sentiment_classifier([soup.get_text().lower().replace('\n','').lstrip()])
-        
-        # Insert the visited URL into the 'visited' table
-        cursor.execute("INSERT INTO visited (url) VALUES (?);", (url,))
-        
-        # Insert the webpage details into the 'webpages' table
-        cursor.execute("INSERT INTO webpages (url, content, sentiment) VALUES (?, ?, ?);", (url, soup.get_text().lower().replace('\n','').lstrip(), distilled_student_sentiment_classifier_output[0][0]['score']))
-        
-        # Commit the changes to the database
-        conn.commit()
-    except Exception as e:
-        # Handle any exceptions that occur during parsing or database operations
-        print(e)
 
-    # Extract all the links from the webpage and add them to the crawl queue
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                html = await response.text()
+    except aiohttp.ClientError as e:
+        print(f"Request failed: {e}")
+        return crawl_queue
+
+    try:
+        soup = BeautifulSoup(html, 'html.parser')
+        text_content = soup.get_text().lower().replace('\n', '').strip()
+        sentiment_output = distilled_student_sentiment_classifier([text_content])
+
+        cursor.execute("INSERT INTO visited (url) VALUES (?);", (url,))
+        cursor.execute(
+            "INSERT INTO webpages (url, content, sentiment) VALUES (?, ?, ?);",
+            (url, text_content, sentiment_output[0][0]['score'])
+        )
+        conn.commit()
+    except (sqlite3.DatabaseError, Exception) as e:
+        print(f"Parsing or DB operation failed: {e}")
+
     for link in soup.find_all('a'):
         href = link.get('href')
-        if href != None:   
+        if href:
             if href.startswith('/'):
                 href = url + href
             elif not href.startswith('http'):
                 continue
             crawl_queue.append(href)
-    
+
     return crawl_queue

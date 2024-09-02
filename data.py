@@ -1,28 +1,45 @@
-import sqlite3
+import asyncio
+import aiomysql
+import aiofiles
 
-def get_data():
-    # Connect to the SQLite database
-    conn = sqlite3.connect('database.sqlite')
-    cursor = conn.cursor()
+async def get_data():
+    # Create a connection pool
+    pool = await aiomysql.create_pool(
+        host='localhost',
+        port=3306,
+        user='your_user',
+        password='your_password',
+        db='database',
+        autocommit=True
+    )
 
-    # Retrieve data from the table
-    table_name = 'your_table'
-    cursor.execute(f"SELECT * FROM webpages;")
-    data = cursor.fetchall()
+    texts = []
+
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            # Retrieve data from the table
+            await cursor.execute("SELECT * FROM webpages;")
+            data = await cursor.fetchall()
+
+            # Prepare data for output
+            for row in data:
+                texts.append(row[2])
 
     # Specify the output text file
     output_file = 'output.txt'
 
-    texts = []
+    # Write the data to the text file using aiofiles
+    async with aiofiles.open(output_file, 'w') as file:
+        for text in texts:
+            await file.write(text + '\n')
 
-    # Write the data to the text file
-    with open(output_file, 'w') as file:
-        for row in data:
-            texts.append(row[2])
+    pool.close()
+    await pool.wait_closed()
 
-    # Close the database connection
-    conn.close()
-
-    print(f"The contents of the '{table_name}' table have been written to '{output_file}'.")
+    print(f"The contents of the 'webpages' table have been written to '{output_file}'.")
 
     return texts
+
+# Entry point
+if __name__ == '__main__':
+    asyncio.run(get_data())

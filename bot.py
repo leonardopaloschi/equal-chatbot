@@ -1,194 +1,224 @@
-import discord
 import re
-import requests
-import json
 import sqlite3
+import requests
 from discord.ext.commands import Bot
+import discord
 from nltk.corpus import wordnet
 from nltk.tokenize import word_tokenize
-from nltk.corpus import wordnet as wn
-
+from transformers import pipeline, set_seed
 import nltk
 
-from generator import generate_sentence, train_model
-
+from generator import generate_sentence, build_and_train_model, get_data
 from crawler_bfs import crawl_bfs
+
 nltk.download('wordnet')
 
-intents = discord.Intents.all()
-
-from transformers import pipeline, set_seed
-
+# Initialize the text generation pipeline
 generator = pipeline('text-generation', model='gpt2')
 set_seed(42)
 
-base_url = 'https://api.spoonacular.com/'
-pattern_number = r"^[0-9]{1,5}$"
-pattern_food = '\w+'
+# Constants
+BASE_URL = 'https://api.spoonacular.com/'
+PATTERN_NUMBER = r"^[0-9]{1,5}$"
+PATTERN_FOOD = r'\w+'
+API_KEY = '911952be2b1e4b549c6eb2a8ef2e7130'
 
-api_key = '911952be2b1e4b549c6eb2a8ef2e7130'
+# Initialize Discord bot client
+intents = discord.Intents.all()
+client = Bot(command_prefix='!', intents=intents)
 
-client = Bot('!', intents=intents)
 
 @client.command()
 async def hello(ctx):
-    await ctx.send('Hello, this is the Equal Chatbot in private.')  # Send a greeting message to the context (ctx)
+    """Send a greeting message."""
+    await ctx.send('Hello, this is the Equal Chatbot in private.')
+
 
 @client.command()
 async def source(ctx):
-    await ctx.reply('The link for the source code of the bot is here on GitHub: https://github.com/aronfelipe/equal-chatbot/blob/main/deploy_bot_discord.py')  # Send a reply with the link to the source code on GitHub
+    """Provide the source code link."""
+    await ctx.reply(
+        """The link for the source code of the bot is here on GitHub:
+        https://github.com/aronfelipe/equal-chatbot/blob/main/deploy_bot_discord.py"""
+    )
+
 
 @client.command()
 async def author(ctx):
-    await ctx.reply('The chatbot author email is felipe.nudelman@gmail.com, and his name is Felipe Aron', mention_author=True)  # Send a reply with information about the chatbot author, mentioning the author's name
-    
+    """Provide the author's email and name."""
+    await ctx.reply(
+        'The chatbot author email is felipe.nudelman@gmail.com, and his name is Felipe Aron',
+        mention_author=True
+    )
+
+
 @client.command()
 async def help_(ctx):
-    # Help message providing information about the available commands and their usage
-    help_message = """Here is the help function where we inform the available Equal Chatbot commands.
-    To run a command, you should start your message with `!`.
-    The available commands are:
-    - `hello`: Displays a greeting message from the chatbot.
-    - `source`: Provides a link to the source code of the bot on GitHub.
-    - `author`: Displays information about the chatbot's author.
-    - `get_random_recipes`: Retrieves random recipes for meals.
-    - `get_recipes_with_autocompletion`: Retrieves recipes based on autocompletion.
-    
-    To use the `get_random_recipes` command, run: `!get_random_recipes <number>`. Replace `<number>` with the desired number of random recipes.
-    To use the `get_recipes_with_autocompletion` command, run: `!get_recipes_with_autocompletion <query>`. Replace `<query>` with the food or word you want to search for.
-    
-    Example usages:
-    - `!get_random_recipes 3`: Retrieves 3 random recipes.
-    - `!get_recipes_with_autocompletion chicken`: Retrieves recipes with autocompletion for the word "chicken".
-    
-    We use the Spoonacular API (https://api.spoonacular.com) to retrieve the recipes."""
-    
-    await ctx.reply(help_message)  # Send the help message as a reply to the context (ctx)
+    """Provide help information for available commands."""
+    help_message = (
+        "Here is the help function where we inform the available Equal Chatbot commands.\n"
+        "To run a command, you should start your message with `!`.\n"
+        "The available commands are:\n"
+        "- `hello`: Displays a greeting message from the chatbot.\n"
+        "- `source`: Provides a link to the source code of the bot on GitHub.\n"
+        "- `author`: Displays information about the chatbot's author.\n"
+        "- `get_random_recipes`: Retrieves random recipes for meals.\n"
+        "- `get_recipes_with_autocompletion`: Retrieves recipes based on autocompletion.\n\n"
+        "To use the `get_random_recipes` command, run: `!get_random_recipes <number>`.\n"
+        """Replace `<number>` with
+        the desired number of random recipes.\n"""
+        """To use the `get_recipes_with_autocompletion` command, run
+        : `!get_recipes_with_autocompletion <query>`.\n"""
+        "Replace `<query>` with the food or word you want to search for.\n\n"
+        "Example usages:\n"
+        "- `!get_random_recipes 3`: Retrieves 3 random recipes.\n"
+        """- `!get_recipes_with_autocompletion chicken`: 
+        Retrieves recipes with autocompletion for the word 'chicken'.\n\n"""
+        "We use the Spoonacular API (https://api.spoonacular.com) to retrieve the recipes."
+    )
+    await ctx.reply(help_message)
+
 
 @client.command()
 async def get_random_recipes(ctx, number: int):
-    if number < 1 or number > 5:
-        await ctx.reply('The number of recipes is invalid. Please choose a number between 1 and 5.')  # If the number is not within the valid range
-        return  # Exit the function
-    url = base_url + '/recipes/random/'  # Construct the URL for retrieving random recipes
-    params = {'number': number, 'apiKey': api_key}  # Set the number and API key as parameters for the request
-    try:
-        response = requests.get(url, params=params)  # Send a GET request to the API endpoint with the parameters
-        response = json.loads(response.text)  # Parse the response as JSON
+    """Retrieve random recipes based on the provided number."""
+    if not 1 <= number <= 5:
+        await ctx.reply('The number of recipes is invalid. Please choose a number between 1 and 5.')
+        return
 
-        recipes = [recipe['title'] for recipe in response['recipes']]  # Extract the titles of the recipes from the response
-        await ctx.reply('The random recipes are: {}'.format(', '.join(recipes)))  # Send a reply with the random recipe titles
-    except Exception as e:
-        print(e)  # Print the exception to the console for debugging purposes
-        await ctx.reply('An error occurred while retrieving random recipes.')  # Send an error message if an exception occurs
+    url = f'{BASE_URL}/recipes/random/'
+    params = {'number': number, 'apiKey': API_KEY}
+
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        recipes = [recipe['title'] for recipe in data['recipes']]
+        await ctx.reply(f'The random recipes are: {", ".join(recipes)}')
+    except requests.RequestException as e:
+        print(e)
+        await ctx.reply('An error occurred while retrieving random recipes.')
+
 
 @client.command()
 async def get_recipes_with_autocompletion(ctx, query):
+    """Retrieve recipes based on autocompletion of the provided query."""
     if not query:
-        await ctx.reply('The query for recipes is empty. Please provide a word.')  # If the query is empty
-        return  # Exit the function
-    if not re.match(pattern_food, query):
-        await ctx.reply('The query for recipes is invalid. Please provide a valid word.')  # If the query doesn't match the pattern
-        return  # Exit the function
-    url = base_url + '/recipes/autocomplete/'  # Construct the URL for autocompleted recipes
-    params = {'query': query, 'apiKey': api_key}  # Set the query and API key as parameters for the request
+        await ctx.reply('The query for recipes is empty. Please provide a word.')
+        return
+
+    if not re.match(PATTERN_FOOD, query):
+        await ctx.reply('The query for recipes is invalid. Please provide a valid word.')
+        return
+
+    url = f'{BASE_URL}/recipes/autocomplete/'
+    params = {'query': query, 'apiKey': API_KEY}
+
     try:
-        response = requests.get(url, params=params)  # Send a GET request to the API endpoint with the query and API key
-        response = json.loads(response.text)  # Parse the response as JSON
-        recipes = [recipe['title'] for recipe in response]  # Extract the titles of the recipes from the response
-        await ctx.reply('The autocompleted recipes are: {}'.format(', '.join(recipes)))  # Send a message with the autocompleted recipes
-    except Exception as e:
-        print(e)  # Print the exception to the console for debugging purposes
-        await ctx.reply('An error occurred while retrieving autocompleted recipes.')  # Send an error message if an exception occurs
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        recipes = [recipe['title'] for recipe in data]
+        await ctx.reply(f'The autocompleted recipes are: {", ".join(recipes)}')
+    except requests.RequestException as e:
+        print(e)
+        await ctx.reply('An error occurred while retrieving autocompleted recipes.')
+
 
 @client.command()
 async def crawl(ctx, url):
-    crawl_queue = await crawl_bfs(url)  # Invoke a breadth-first crawl function and get the initial crawl queue
+    """Perform a breadth-first crawl starting from the provided URL."""
+    crawl_queue = await crawl_bfs(url)
     while crawl_queue:
-        await ctx.send("Crawling " + crawl_queue[0])  # Send a message indicating the URL being crawled
-        print('Crawling ' + crawl_queue[0])  # Print the URL being crawled
-        await crawl_bfs(crawl_queue.pop(0))  # Pop the first URL from the crawl queue and invoke the crawl function on it
-    await ctx.send("Crawling finished!")  # Send a message indicating the completion of crawling
+        current_url = crawl_queue.pop(0)
+        await ctx.send(f"Crawling {current_url}")
+        print(f'Crawling {current_url}')
+        crawl_queue.extend(await crawl_bfs(current_url))
+    await ctx.send("Crawling finished!")
+
 
 @client.command()
 async def generate(ctx, term):
-    await ctx.send("Generating text for term " + term)  # Send a message indicating the term for which text is being generated
-    model, tokenizer, max_sequence_length = train_model() # Train the model and get the tokenizer and maximum sequence length
-    print('Generating text for term ' + term) # Print the term for which text is being generated
-    await ctx.send(term + ' '+ generate_sentence(term, model, tokenizer, max_sequence_length))  # Send a message indicating the completion of text generation
+    """Generate text based on the provided term using a trained model."""
+    await ctx.send(f"Generating text for term {term}")
+    model, tokenizer, max_sequence_length = build_and_train_model(get_data())
+    print(f'Generating text for term {term}')
+    generated_text = generate_sentence(term, model, tokenizer, max_sequence_length)
+    await ctx.send(f'{term} {generated_text}')
+
 
 @client.command()
 async def generate_gpt(ctx, term):
-    await ctx.send("Generating text for term " + term +  " using gpt2 model")  # Send a message indicating the term for which text is being generated
-    print(generator(term, max_length=30, num_return_sequences=1))
-    await ctx.send(generator(term, max_length=30, num_return_sequences=1)[0]['generated_text'])  # Send a message indicating the term for which text is being generated
+    """Generate text based on the provided term using the GPT-2 model."""
+    await ctx.send(f"Generating text for term {term} using gpt2 model")
+    generated = generator(term, max_length=30, num_return_sequences=1)[0]['generated_text']
+    print(generated)
+    await ctx.send(generated)
+
 
 @client.command()
 async def wn_search(ctx, term, threshold=None):
-    conn = sqlite3.connect('database.sqlite')  # Connect to the SQLite database
-    c = conn.cursor()  # Create a cursor object to execute SQL queries
-    inverted_index = {}  # Initialize an empty dictionary for the inverted index
+    """Search for URLs in the database based on similar words in the term."""
+    conn = sqlite3.connect('database.sqlite')
+    c = conn.cursor()
+    inverted_index = {}
+
     if threshold:
-        rows = c.execute("SELECT * FROM webpages WHERE sentiment >= " + threshold + ';')
+        query = "SELECT * FROM webpages WHERE sentiment >= ?"
+        rows = c.execute(query, (threshold,))
     else:
-        rows = c.execute("SELECT * FROM webpages;") # Execute a SQL query to fetch all rows from the 'webpages' table
+        rows = c.execute("SELECT * FROM webpages")
+
     for row in rows:
-        url, content = row[1], row[2]  # Extract the URL and content from the row
-        tokens = word_tokenize(content.lower())  # Tokenize the content and convert it to lowercase
+        url, content = row[1], row[2]
+        tokens = word_tokenize(content.lower())
         for token in tokens:
             if token not in inverted_index:
-                inverted_index[token] = set()  # Create an empty set for each unique token
-            inverted_index[token].add(url)  # Add the URL to the set associated with the token
-    similar_words = set()  # Initialize an empty set to store similar words
-    tokens = word_tokenize(term.lower())  # Tokenize the search term and convert it to lowercase
-    for synset in wordnet.synsets(term):  # Iterate over synsets (word senses) of the search term in WordNet
-        for lemma in synset.lemmas():  # Iterate over the lemmas (variants) of each synset
-            similar_words.add(lemma.name())  # Add the lemma (similar word) to the set of similar words
-    results = set()  # Initialize an empty set to store the search results
+                inverted_index[token] = set()
+            inverted_index[token].add(url)
+
+    similar_words = set()
+    tokens = word_tokenize(term.lower())
+    for synset in wordnet.synsets(term):
+        for lemma in synset.lemmas():
+            similar_words.add(lemma.name())
+
+    results = set()
     for similar_word in similar_words:
         if similar_word in inverted_index:
-            results = results.union(inverted_index[similar_word])  # Add the URLs associated with each similar word to the results set
-    results = list(results)  # Convert the results set to a list
-    # Execute a SQL query to fetch the complete results from the 'webpages' table using the URLs in the results list
-    c.execute("SELECT * FROM webpages WHERE url IN ({});".format(', '.join('?' for _ in results)), results)
-    rows = c.fetchall()  # Fetch all the rows returned by the query
-    conn.close()  # Close the database connection
-    await ctx.send(results)  # Send the results (URLs) as a response in the Discord channel
+            results.update(inverted_index[similar_word])
+
+    results = list(results)
+    query = "SELECT * FROM webpages WHERE url IN ({})".format(', '.join('?' for _ in results))
+    c.execute(query, results)
+    rows = c.fetchall()
+    conn.close()
+
+    await ctx.send(results)
+
 
 @client.command()
 async def search(ctx, term, threshold=None):
-
-    conn = sqlite3.connect('database.sqlite')  # Connect to the SQLite database
-    c = conn.cursor()  # Create a cursor object to execute SQL queries
+    """Search for webpages in the database based on 
+    the provided term and optional sentiment threshold."""
+    conn = sqlite3.connect('database.sqlite')
+    c = conn.cursor()
 
     if threshold:
-        rows = c.execute("SELECT * FROM webpages WHERE sentiment >= " + threshold + ';')
+        query = "SELECT * FROM webpages WHERE sentiment >= ?"
+        rows = c.execute(query, (threshold,))
     else:
-        rows = c.execute("SELECT * FROM webpages;") # Execute a SQL query to fetch all rows from the 'webpages' table
+        rows = c.execute("SELECT * FROM webpages")
 
-    inverted_index = {}  # Initialize an empty dictionary for the inverted index
-
+    results = []
     for row in rows:
-        url, content = row[1], row[2]  # Extract the URL and content from the row
-        tokens = word_tokenize(content.lower())  # Tokenize the content and convert it to lowercase
-        for token in tokens:
-            if token not in inverted_index:
-                inverted_index[token] = set()  # Create an empty set for each unique token
-            inverted_index[token].add(url)  # Add the URL to the set associated with the token
+        url, content = row[1], row[2]
+        if term.lower() in content.lower():
+            results.append(url)
 
-    tokens = word_tokenize(term.lower())  # Tokenize the search term and convert it to lowercase
-    results = set()  # Initialize an empty set to store the search results
+    conn.close()
+    await ctx.send(results)
 
-    for token in tokens:
-        if token in inverted_index:
-            results = results.union(inverted_index[token])  # Add the URLs associated with each token to the results set
 
-    # Recuperar os resultados completos a partir do banco de dados
-    results = list(results)  # Convert the results set to a list
-    # Execute a SQL query to fetch the complete results from the 'webpages' table using the URLs in the results list
-    c.execute("SELECT * FROM webpages WHERE url IN ({});".format(', '.join('?' for _ in results)), results)
-    rows = c.fetchall()  # Fetch all the rows returned by the query
-    conn.close()  # Close the database connection
-    await ctx.send(results)  # Send the results (URLs) as a response in the Discord channel
-
-client.run('')
+if __name__ == "__main__":
+    client.run('YOUR_DISCORD_BOT_TOKEN')
