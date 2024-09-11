@@ -1,5 +1,7 @@
 """
-This module performs web crawling using a breadth-first search (BFS) approach. It crawls a given URL, analyzes the sentiment of the webpage content using a sentiment analysis pipeline, and stores the results in an SQLite database.
+This module performs web crawling using a breadth-first search (BFS) approach.
+It crawls a given URL, analyzes the sentiment of the webpage content using a sentiment analysis pipeline,
+and stores the results in an SQLite database.
 
 Dependencies:
 - aiohttp: For asynchronous HTTP requests.
@@ -29,7 +31,7 @@ async def crawl_bfs(url):
 
     Args:
         url (str): The URL to crawl.
-    
+
     Returns:
         list: List of URLs to crawl next.
     """
