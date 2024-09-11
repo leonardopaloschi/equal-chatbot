@@ -1,4 +1,6 @@
-"""This module builds and trains an LSTM model for text generation."""
+"""
+This module builds and trains an LSTM model for text generation.
+"""
 
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
@@ -62,6 +64,30 @@ def generate_sentence(query, model, tokenizer, max_sequence_length, num_words=10
     return ' '.join(generated_words)
 
 def main():
+    """
+    Main function that orchestrates the data retrieval, preprocessing, model building,
+    and text generation processes.
+
+    Steps performed:
+    1. Retrieves data from the database using the `get_data` function.
+    2. Preprocesses the retrieved texts using the `preprocess_texts` function.
+    3. Builds and trains a model with the preprocessed texts using the `build_and_train_model` function.
+    4. Generates a sentence based on a query using the trained model, tokenizer, and maximum sequence length.
+
+    This function is designed to demonstrate the full pipeline from data retrieval to
+    text generation and prints the generated sentence based on an example query.
+
+    Note:
+    - Ensure that the `get_data`, `preprocess_texts`, `build_and_train_model`, and `generate_sentence`
+      functions are defined and correctly implemented in the same script or imported from other modules.
+
+    Args:
+        None
+
+    Returns:
+        None: This function runs the full process and prints the generated sentence.
+    """
+
     texts = get_data()
     texts = preprocess_texts(texts)
 

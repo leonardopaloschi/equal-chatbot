@@ -1,3 +1,8 @@
+"""
+Este módulo implementa um bot do Discord com várias funcionalidades,
+incluindo geração de texto, busca em banco de dados, e interação com APIs externas.
+"""
+
 import re
 import sqlite3
 import requests
@@ -72,7 +77,7 @@ async def help_(ctx):
         "Replace `<query>` with the food or word you want to search for.\n\n"
         "Example usages:\n"
         "- `!get_random_recipes 3`: Retrieves 3 random recipes.\n"
-        """- `!get_recipes_with_autocompletion chicken`: 
+        """- `!get_recipes_with_autocompletion chicken`:
         Retrieves recipes with autocompletion for the word 'chicken'.\n\n"""
         "We use the Spoonacular API (https://api.spoonacular.com) to retrieve the recipes."
     )
@@ -199,7 +204,7 @@ async def wn_search(ctx, term, threshold=None):
 
 @client.command()
 async def search(ctx, term, threshold=None):
-    """Search for webpages in the database based on 
+    """Search for webpages in the database based on
     the provided term and optional sentiment threshold."""
     conn = sqlite3.connect('database.sqlite')
     c = conn.cursor()
