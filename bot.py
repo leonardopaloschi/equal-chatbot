@@ -11,6 +11,12 @@ import nltk
 from generator import generate_sentence, build_and_train_model, get_data
 from crawler_bfs import crawl_bfs
 
+from dotenv import load_dotenv
+import os
+
+# Carrega as variáveis do arquivo .env
+load_dotenv()
+
 nltk.download('wordnet')
 
 # Initialize the text generation pipeline
@@ -21,7 +27,8 @@ set_seed(42)
 BASE_URL = 'https://api.spoonacular.com/'
 PATTERN_NUMBER = r"^[0-9]{1,5}$"
 PATTERN_FOOD = r'\w+'
-API_KEY = '911952be2b1e4b549c6eb2a8ef2e7130'
+API_KEY = os.getenv('API_KEY')
+
 
 # Initialize Discord bot client
 intents = discord.Intents.all()
