@@ -233,4 +233,5 @@ async def search(ctx, term, threshold=None):
 
 
 if __name__ == "__main__":
-    client.run('YOUR_DISCORD_BOT_TOKEN')
+    token = input("Enter your Discord bot token: ")
+    client.run(token)
